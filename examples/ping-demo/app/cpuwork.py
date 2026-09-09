@@ -115,13 +115,16 @@ def split_duration(target_seconds, cpu_share=0.0):
     takes no elapsed time -- there is nothing to pass it.
     """
     target = max(0.0, target_seconds)
-    share = _resolve_share(cpu_share)
+    share = resolve_share(cpu_share)
 
     return DurationSplit(target * share, target * (1.0 - share))
 
 
-def _resolve_share(cpu_share):
+def resolve_share(cpu_share):
     """Coerce an operator-supplied share to a fraction of 0 through 1.
+
+    Public because the caller has to report the EFFECTIVE share, not the string it read: a typo
+    that resolves to zero would otherwise be indistinguishable from a correct deployment.
 
     The share arrives from the environment, so anything unparseable resolves to
     zero: a typo must leave the host behaving as it did before rather than

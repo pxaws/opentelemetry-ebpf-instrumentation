@@ -19,6 +19,7 @@ env vars, so the same image runs every role.
 | `PAYMENT_URLS` / `INVENTORY_URLS` / `AUDIT_URLS` | comma-separated downstream base URLs (a DNS name is fine — see Discovery) |
 | `USE_TLS` | `1` serves HTTPS with a self-signed cert (demo only) |
 | `PORT` | listen port (default 8000) |
+| `CPU_SHARE` | fraction of each response's target duration spent on real CPU work instead of sleeping (default `0`). Read at import, so every gunicorn worker sees it — unlike `POST /fault` below. At `0` the app behaves exactly as before. Above `0` an uncontended host's total duration is unchanged, but the compute portion now stretches when something else on the host wants the CPU, which is what makes a host-CPU fault visible in this service's own latency. `/healthz` reports the effective (parsed and clamped) value plus the answering worker's pid |
 
 Runtime controls: `POST /fault?profile=<name>` flips this service's `PROFILE` live;
 `GET /healthz` liveness.

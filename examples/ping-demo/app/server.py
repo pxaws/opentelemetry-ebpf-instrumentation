@@ -22,6 +22,7 @@ import socket
 import time
 import urllib.parse
 
+import cpuwork
 import requests
 import urllib3
 from flask import Flask, jsonify
@@ -30,6 +31,16 @@ urllib3.disable_warnings()  # self-signed downstream certs in the HTTPS demo
 
 ROLE = os.environ.get("ROLE", "checkout")
 PORT = int(os.environ.get("PORT", "8000"))
+
+# Share of each response's target duration spent on real CPU work instead of sleeping. Read at
+# IMPORT, not per request: gunicorn runs two workers with no --preload, so module state a request
+# mutates reaches one worker and about half the traffic (which is also why POST /fault below is
+# per-process, not instance-wide). An environment variable is read by every worker.
+#
+# Default 0 leaves a host that does not set it behaving exactly as before. The effective value is
+# reported from /healthz, because a typo that clamps to zero is otherwise indistinguishable from a
+# correct deployment.
+CPU_SHARE = cpuwork.resolve_share(os.environ.get("CPU_SHARE", "0"))
 
 # Comma-separated downstream base URLs; picked random.choice so multiple
 # instances (payment x3, audit x3) fan out on EC2.
@@ -122,7 +133,12 @@ app = Flask(__name__)
 
 @app.get("/healthz")
 def healthz():
-    return jsonify(ok=True, role=ROLE, profile=_state["profile"])
+    # cpu_share is the PARSED value, and pid names the worker that answered. Both are needed to
+    # check a deployment: with two workers and no preload, twenty samples of one worker look
+    # identical to ten of each, so without the pid "sampled until both workers answered" is not
+    # something a caller can actually do.
+    return jsonify(ok=True, role=ROLE, profile=_state["profile"],
+                   cpu_share=CPU_SHARE, pid=os.getpid())
 
 
 @app.post("/fault")
@@ -135,12 +151,35 @@ def fault():
     return jsonify(role=ROLE, profile=p)
 
 
+def _log_compute(spent):
+    """One line per request: the slowdown factor, measured directly.
+
+    Wall time over CPU time IS the factor by which this host is being starved — unquantised, in
+    seconds, and independent of the metric path, so a metric artifact cannot be mistaken for a
+    correctly sized fault. Without it, sizing the fault means hill-climbing a continuous knob
+    against a percentile that only updates every few minutes.
+
+    Only emitted when a share is set. On a host at the default the line would be a behaviour
+    change for no gain, and the log driver's own cost lands inside the app's cgroup.
+    """
+    slowdown = spent.wall_seconds / spent.cpu_seconds if spent.cpu_seconds > 0 else 0.0
+    print(f"cpuwork role={ROLE} share={CPU_SHARE:.3f} cpu={spent.cpu_seconds:.4f}s "
+          f"wall={spent.wall_seconds:.4f}s slowdown={slowdown:.2f} capped={spent.capped}",
+          flush=True)
+
+
 @app.post(SERVE_ROUTE)
 def serve():
     status, latency = pick_response()
     if status < 400:
         fan_out()  # only orchestrate on the OK path
-    time.sleep(latency)
+    # The split is computed BEFORE the compute runs and the sleep is a fixed proportion of the
+    # target, never `latency - elapsed`. Sleeping the remainder would cancel out exactly the
+    # contention the compute just absorbed, which is the whole signal.
+    split = cpuwork.split_duration(latency, CPU_SHARE)
+    if split.cpu_budget_seconds > 0:
+        _log_compute(cpuwork.spend_cpu(split.cpu_budget_seconds))
+    time.sleep(split.sleep_seconds)
     return jsonify(role=ROLE, status=status), status
 
 
