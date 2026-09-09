@@ -4,14 +4,29 @@ services:
   # maps pin under /sys/fs/bpf. MUST be healthy before apps start (OBI discovery
   # is biased toward process-exec events).
   obi-collector:
-    image: obi-collector:ping
+    # Pinned by digest, not by tag: route emission (http.route on both server and client metrics) is an
+    # unexplained property of this specific build -- the live rig's collector has no routes: block in
+    # its configuration -- and the whole operation roster depends on it. A moving tag would silently
+    # collapse the roster to bare HTTP methods.
+    image: ghcr.io/wangzlei/obi-collector@sha256:cc750830356b1361b0762117287a41395ad018c2411ecf4da644906ec4fc9016
     container_name: ping-collector
     privileged: true
     pid: "host"
     network_mode: "host"
+    # An OOM-killed collector drops batches, which reads as the agent limitation this rig exists to
+    # measure -- so the cap is here to make an OOM a measured fact rather than a mystery (KD7/KTD12).
+    # This build has no memory_limiter processor compiled in (see docs/issues.md), so the container cap
+    # is the only bound on the collector's memory.
+    mem_limit: 512m
     environment:
       - AWS_PROFILE=ping
-      - AWS_REGION=us-west-2
+      # Read by both sigv4 signers and both AWS endpoints in collector-config.yaml. Set here rather
+      # than in the file, which is shared with the us-west-2 rig (KTD11).
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      # The bridge instance's OTLP receiver. On this single-host compose path there is usually no
+      # bridge, so the default points at loopback and the export fails loudly -- retries are off, so it
+      # cannot back up.
+      - OMNI_BRIDGE_ENDPOINT=${OMNI_BRIDGE_ENDPOINT:-http://127.0.0.1:4318}
     volumes:
       - /sys/fs/bpf:/sys/fs/bpf
       - /sys:/sys
@@ -30,6 +45,7 @@ services:
     image: ping-app
     build: ./app
     container_name: ping-checkout
+    mem_limit: 256m
     networks: { apps: { aliases: [checkout] } }
     environment:
       - OTEL_SERVICE_NAME=checkout-service
@@ -43,6 +59,7 @@ services:
   payment:
     image: ping-app
     container_name: ping-payment
+    mem_limit: 256m
     networks: { apps: { aliases: [payment] } }
     environment:
       - OTEL_SERVICE_NAME=payment-service
@@ -55,6 +72,7 @@ services:
   inventory:
     image: ping-app
     container_name: ping-inventory
+    mem_limit: 256m
     networks: { apps: { aliases: [inventory] } }
     environment:
       - OTEL_SERVICE_NAME=inventory-service
@@ -66,6 +84,7 @@ services:
   audit:
     image: ping-app
     container_name: ping-audit
+    mem_limit: 256m
     networks: { apps: { aliases: [audit] } }
     environment:
       - OTEL_SERVICE_NAME=audit-service

@@ -34,16 +34,46 @@ docker build -t ping-app app/
 
 **Collector** — the OBI-as-receiver collector, built from `examples/otel-collector`
 (ocb) and published multi-arch to GHCR by the fork's `build-artifacts.yml` workflow.
-It bundles: obi receiver, otlphttp + sigv4auth (CloudWatch/X-Ray), cumulativetodelta,
+It bundles: obi receiver, otlp_http + sigv4auth (CloudWatch/X-Ray), cumulativetodelta,
 transformprocessor (+ spanmetrics/filter, unused by default).
+
+**Pin by digest, never by tag.** Route emission — `http.route` on both the server and the client
+metric — is an unexplained property of one specific build: the running rig's collector has no
+`routes:` block in its configuration and emits routes anyway. The whole per-operation roster in the
+Omni UI depends on it, so a moving reference could collapse that roster to bare HTTP methods with no
+error anywhere. `latest` moves by definition and a short-sha tag is mutable in GHCR; only the digest
+cannot change under the rig.
+
 ```bash
-# pull the current image (public; tag = a commit short-sha on demo/ping)
-docker pull ghcr.io/wangzlei/obi-collector:latest
-# or rebuild after an OBI/builder-config change:
+# the pinned build (verified 2026-09-09: identical to tag f5027fd and to latest; built 03:07 UTC)
+docker pull ghcr.io/wangzlei/obi-collector@sha256:cc750830356b1361b0762117287a41395ad018c2411ecf4da644906ec4fc9016
+# rebuild after an OBI/builder-config change -- then re-verify route emission and re-pin the new digest
 gh workflow run "Build artifacts (obi + collector)" \
   --repo wangzlei/opentelemetry-ebpf-instrumentation --ref demo/ping
 ```
-`collector-config.yaml` (this folder) is mounted at `/etc/otelcol/config.yaml`.
+
+Two things the image does NOT contain, both worth knowing before editing the config: `memory_limiter`
+(neither processor nor extension — see `setup-local-omni/docs/issues.md` GAP 17) and any health-check
+extension. The collector's own Prometheus telemetry endpoint on `:8888` is its only health signal.
+
+`collector-config.yaml` (this folder) is mounted at `/etc/otelcol/config.yaml`. Validate an edit
+offline, against the pinned image, before pushing it to eight hosts:
+
+```bash
+docker run --rm --entrypoint /otelcol \
+  -e AWS_REGION=us-east-1 -e OMNI_BRIDGE_ENDPOINT=http://<bridge-private-ip>:4318 \
+  -v "$PWD/collector-config.yaml:/cfg.yaml:ro" \
+  ghcr.io/wangzlei/obi-collector@sha256:cc750830356b1361b0762117287a41395ad018c2411ecf4da644906ec4fc9016 \
+  validate --config /cfg.yaml
+# `print-config` instead of `validate` prints the RESOLVED config, which is how to confirm the two
+# ${env:...} substitutions actually took.
+```
+
+**Two environment variables are required** by the config and are set in the run commands, never in the
+file: `AWS_REGION` (both sigv4 signers and both AWS endpoints read it — the file is shared with the
+us-west-2 rig whose redeploy is "write it and restart", so a hardcoded region puts cross-region
+publication one command away) and `OMNI_BRIDGE_ENDPOINT` (the bridge's OTLP receiver, e.g.
+`http://10.1.2.3:4318`; `otlp_http` appends `/v1/metrics`).
 
 ---
 
@@ -65,17 +95,28 @@ This is the deployment used for the reference setup: N instances, each running i
 own collector + one app container, discovery via Route 53. There is no cross-host
 orchestrator — each host is provisioned individually over SSM.
 
-Reference values (us-west-2, profile `ping`): AMI `ami-0b787142aa56d54db`
-(AL2023 x86), VPC `vpc-017c34776120b35bc`, subnet `subnet-002be9598dad093c4`,
-SG `sg-0f6caf64203f751e2` (intra :8000 + egress), instance profile
-`Ec2DemoObservability-ObsInstanceInstanceProfile...` (SSM + CloudWatch + X-Ray),
-Route 53 private zone `ping.internal` (`Z097757611V01PJRE00N6`).
+**Region for this deployment: `us-east-1`, account `868155213681`.** The original
+reference rig runs in us-west-2 and is inventoried in `HANDOFF.md`; none of its resource
+ids are valid here, because a VPC, subnet, security group and Route 53 zone are all
+region-scoped. Only the AMI has a us-east-1 equivalent:
+
+| resource | us-east-1 value |
+|---|---|
+| AMI (AL2023 x86, kernel 6.1) | `ami-025b6f0b1ac2ef9f7` — or resolve fresh from SSM parameter `/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64` |
+| VPC | **create** |
+| subnet | **create** |
+| security group | **create** — intra `:8000` plus egress `:443` |
+| instance profile | **create** — SSM + `cloudwatch:PutMetricData` + X-Ray put actions |
+| Route 53 private zone `ping.internal` | **create**, associated with the new VPC |
+
+Substitute the created ids into the commands below. Resolve the AMI rather than pasting
+the id above if this file is more than a few weeks old — AL2023 republishes often.
 
 ### 3a. Launch instances (one per role; scale payment/audit)
 ```bash
-aws ec2 run-instances --region us-west-2 --profile ping \
-  --image-id ami-0b787142aa56d54db --instance-type t3.medium --count 3 \
-  --subnet-id subnet-002be9598dad093c4 --security-group-ids sg-0f6caf64203f751e2 \
+aws ec2 run-instances --region us-east-1 \
+  --image-id ami-025b6f0b1ac2ef9f7 --instance-type t3.small --count 3 \
+  --subnet-id <new-subnet-id> --security-group-ids <new-sg-id> \
   --iam-instance-profile Arn=<obs-instance-profile-arn> \
   --metadata-options HttpTokens=required,HttpEndpoint=enabled \
   --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=ping-payment},{Key=ping-role,Value=payment},{Key=purpose,Value=ping-demo}]'
@@ -85,7 +126,7 @@ Repeat per role (`checkout` ×1, `payment` ×3, `inventory` ×1, `audit` ×3).
 ### 3b. Route 53 records (method-2 discovery)
 Multivalue A records, one value per instance IP, low TTL:
 ```bash
-aws route53 change-resource-record-sets --profile ping --hosted-zone-id Z097757611V01PJRE00N6 \
+aws route53 change-resource-record-sets --hosted-zone-id <new-zone-id> \
   --change-batch '{"Changes":[{"Action":"UPSERT","ResourceRecordSet":{
     "Name":"payment.ping.internal","Type":"A","TTL":10,
     "ResourceRecords":[{"Value":"<ip1>"},{"Value":"<ip2>"},{"Value":"<ip3>"}]}}]}'
@@ -100,16 +141,25 @@ Per host: install docker, drop the app files + `collector-config.yaml` under
 - payment:  `AUDIT_URLS=http://audit.ping.internal:8000`
 
 ```bash
+# The collector. Pinned by digest (section 1) and memory-capped: an OOM-killed collector drops batches,
+# which reads as the agent limitation this rig exists to measure, so the cap makes an OOM a measured
+# fact. This build has no memory_limiter processor, so the container cap is the only bound (GAP 17).
+COLLECTOR=ghcr.io/wangzlei/obi-collector@sha256:cc750830356b1361b0762117287a41395ad018c2411ecf4da644906ec4fc9016
 docker run -d --name ping-collector --restart unless-stopped --privileged --pid host \
-  --network host -e AWS_REGION=us-west-2 \
+  --network host --memory 512m \
+  -e AWS_REGION=us-east-1 -e OMNI_BRIDGE_ENDPOINT=http://<bridge-private-ip>:4318 \
   -v /sys/fs/bpf:/sys/fs/bpf -v /sys:/sys -v /proc:/proc:ro \
   -v /opt/ping/collector-config.yaml:/etc/otelcol/config.yaml:ro \
-  obi-collector:ping --config /etc/otelcol/config.yaml
+  "$COLLECTOR" --config /etc/otelcol/config.yaml
 
-docker run -d --name ping-app-svc --restart unless-stopped --network host \
+docker run -d --name ping-app-svc --restart unless-stopped --network host --memory 256m \
   -e OTEL_SERVICE_NAME=payment-service -e ROLE=payment -e PROFILE=healthy \
   -e AUDIT_URLS=http://audit.ping.internal:8000 ping-app
 ```
+
+`OMNI_BRIDGE_ENDPOINT` must be the bridge's real private address. A wrong one fails **quietly** by
+design — the bridge exporter has retries off and a bounded queue, so it drops rather than backs up — so
+confirm the bridge topic's message count rises after deploying, not just that the container is up.
 Access hosts with `aws ssm start-session --target <instance-id>` (no SSH/public IP).
 
 ---

@@ -1,5 +1,10 @@
 # ping demo — live deployment handoff
 
+> **This file inventories the ORIGINAL us-west-2 rig, and its region is deliberately
+> left as `us-west-2`.** Every id below is region-scoped, so rewriting the region here
+> would name resources that do not exist. The local Omni stack work targets a separate
+> **us-east-1** deployment — see `NOTES.md` §3 for the resources it has to create.
+
 The reference ping demo is running now. This is the inventory of live AWS resources
 so you can take it over. Account `868155213681`, region `us-west-2`. Access is via
 SSM (no SSH / public IPs) — use your own credentials for this account.
