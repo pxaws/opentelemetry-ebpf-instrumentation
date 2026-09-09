@@ -1,3 +1,30 @@
-flask
-gunicorn
-requests
+# Pinned to the versions the three audit hosts' running containers ALREADY held, captured in
+# setup-local-omni/verify/audit-host-spec.tsv -- deliberately not to a fresh resolution.
+#
+# The image is built per host and there is no registry, so three builds are three independent
+# resolutions. A fresh resolve would put the first converted host on different versions from the two
+# unconverted peers it is immediately compared against, and that comparison is the one controlled
+# proof that adding real CPU work to each response moved nothing on an idle host. A dependency change
+# hiding inside it would be indistinguishable from the change under test.
+#
+# The whole closure is pinned, not only the four the app names: the three builds happen minutes apart,
+# and one upstream release landing between them would reintroduce exactly the divergence above.
+
+# Named by the app.
+flask==3.1.3
+gunicorn==26.2.0
+requests==2.34.2
+# Imported directly by server.py (urllib3.disable_warnings) and never declared. Without this line it
+# keeps floating after the three above are pinned.
+urllib3==2.7.0
+
+# The rest of the captured closure. Pulled in by the four above; listed so the resolution is fixed.
+blinker==1.9.0
+certifi==2026.7.22
+charset-normalizer==3.5.1
+click==8.5.0
+idna==3.19
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+Werkzeug==3.1.8
