@@ -21,8 +21,11 @@ env vars, so the same image runs every role.
 | `PORT` | listen port (default 8000) |
 | `CPU_SHARE` | fraction of each response's target duration spent on real CPU work instead of sleeping (default `0`). Read at import, so every gunicorn worker sees it — unlike `POST /fault` below. At `0` the app behaves exactly as before. Above `0` an uncontended host's total duration is unchanged, but the compute portion now stretches when something else on the host wants the CPU, which is what makes a host-CPU fault visible in this service's own latency. `/healthz` reports the effective (parsed and clamped) value plus the answering worker's pid |
 
-Runtime controls: `POST /fault?profile=<name>` flips this service's `PROFILE` live;
-`GET /healthz` liveness.
+Runtime controls: `POST /fault?profile=<name>` flips `PROFILE` in **the one gunicorn worker that
+answers it** — not instance-wide. There are two workers with no `--preload`, so the endpoint changes
+roughly half the traffic, and `GET /healthz` reports whichever worker answered, so the confirming read
+agrees about half the time. `GET /healthz` also reports the effective `CPU_SHARE` and the answering
+worker's `pid`; sample it until both pids have answered before believing either value.
 
 ---
 
