@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # pytest. Miss cpuwork.py here and the container exits at import with the host simply vanishing
 # from telemetry -- which looks exactly like the collector-ordering trap and sends you to the
 # wrong place.
-COPY server.py cpuwork.py ./
+COPY server.py cpuwork.py propagate.py ./
 ENV PORT=8000 ROLE=checkout PROFILE=healthy USE_TLS=0 CPU_SHARE=0
 EXPOSE 8000
 # gthread workers: handlers block on downstream calls + sleep, so give ample

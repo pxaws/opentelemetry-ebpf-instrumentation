@@ -23,6 +23,7 @@ import time
 import urllib.parse
 
 import cpuwork
+import propagate
 import requests
 import urllib3
 from flask import Flask, jsonify
@@ -59,6 +60,16 @@ SERVE_ROUTE = ROUTES[ROLE]
 # XP_DRAFT §3 _PROFILES: status -> (weight, mean_s, min_s, max_s)
 PROFILES = {
     "healthy": [(200, 1000, 0.05, 0.005, 0.40)],
+    # A permanent, small failure rate: 2% fault and 1% error, and otherwise the healthy latency.
+    # `erroring` is a fault INJECTION at roughly half the traffic, which is a thing you arm and then
+    # disarm. This is the steady state instead, so a service map always has a non-zero failure leg to
+    # read. Both legs are present on purpose: with only a 5xx the Errors tile stays at zero and a
+    # reader cannot tell a working query from a broken one.
+    "flaky": [
+        (200, 970, 0.05, 0.005, 0.40),
+        (500, 20, 0.03, 0.002, 0.30),
+        (429, 10, 0.01, 0.001, 0.10),
+    ],
     "degraded": [(200, 1000, 0.30, 0.05, 2.00)],
     "erroring": [
         (200, 500, 0.06, 0.005, 0.50),
@@ -104,28 +115,38 @@ def _targets(base):
 
 def call(base_urls, path):
     """POST to one downstream instance, fanning out across resolved IPs;
-    retry another on failure (client-side resilience)."""
+    retry another on failure (client-side resilience).
+
+    Returns the downstream's status code, or None when there was nothing to call and when every
+    target refused the connection. A transport failure is deliberately NOT reported as a status: it
+    produces no downstream response to propagate, and OBI records it on the client metric anyway.
+    """
     if not base_urls:
-        return
+        return None
     targets = []
     for base in base_urls:
         targets += _targets(base.rstrip("/") + path)
     random.shuffle(targets)
     for url, hosthdr in targets:
         try:
-            requests.post(url, json={}, timeout=5, verify=False, headers={"Host": hosthdr})
-            return
+            r = requests.post(url, json={}, timeout=5, verify=False, headers={"Host": hosthdr})
+            # No retry on a status. Another instance of the same role would answer from the same
+            # profile, so retrying would only hide the failure this fleet exists to show.
+            return r.status_code
         except requests.RequestException:
             continue
+    return None
 
 
 def fan_out():
+    """Call this role's downstreams and return the status the caller should adopt, or None."""
     if ROLE == "checkout":
-        call(PAYMENT_URLS, "/charges")
-        call(INVENTORY_URLS, "/reservations")
-    elif ROLE == "payment":
-        call(AUDIT_URLS, "/audit")
-    # inventory, audit: leaves
+        return propagate.worst_status(
+            [call(PAYMENT_URLS, "/charges"), call(INVENTORY_URLS, "/reservations")]
+        )
+    if ROLE == "payment":
+        return propagate.worst_status([call(AUDIT_URLS, "/audit")])
+    return None  # inventory, audit: leaves
 
 
 app = Flask(__name__)
@@ -172,7 +193,11 @@ def _log_compute(spent):
 def serve():
     status, latency = pick_response()
     if status < 400:
-        fan_out()  # only orchestrate on the OK path
+        # Only orchestrate on the OK path, adopting a dependency's failure as this service's own —
+        # see propagate.worst_status for why, and for which status wins.
+        downstream = fan_out()
+        if downstream is not None:
+            status = downstream
     # The split is computed BEFORE the compute runs and the sleep is a fixed proportion of the
     # target, never `latency - elapsed`. Sleeping the remainder would cancel out exactly the
     # contention the compute just absorbed, which is the whole signal.
