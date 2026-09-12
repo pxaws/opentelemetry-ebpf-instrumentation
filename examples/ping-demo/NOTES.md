@@ -79,6 +79,13 @@ us-west-2 rig whose redeploy is "write it and restart", so a hardcoded region pu
 publication one command away) and `OMNI_BRIDGE_ENDPOINT` (the bridge's OTLP receiver, e.g.
 `http://10.1.2.3:4318`; `otlp_http` appends `/v1/metrics`).
 
+**Two more are optional:** `AWS_VPC_ID` and `AWS_SUBNET_ID`, read from the host's IMDS at deploy time
+and set on the run command, tag every span/metric with `aws.vpc.id` / `aws.subnet.id`. They use the
+default-empty form `${env:AWS_VPC_ID:-}` guarded by `!= ""`, so a host that does not set them loads the
+same shared file cleanly and simply omits the attributes — no config-load failure on an unset variable.
+On the us-east-1 rig they are set only on the redeployed hosts (the three inventory instances and
+checkout), which is what makes inventory's server RED sliceable by subnet.
+
 ---
 
 ## 2. Run locally (docker-compose, single host)
@@ -149,9 +156,17 @@ Per host: install docker, drop the app files + `collector-config.yaml` under
 # which reads as the agent limitation this rig exists to measure, so the cap makes an OOM a measured
 # fact. This build has no memory_limiter processor, so the container cap is the only bound (GAP 17).
 COLLECTOR=ghcr.io/wangzlei/obi-collector@sha256:cc750830356b1361b0762117287a41395ad018c2411ecf4da644906ec4fc9016
+# AWS_VPC_ID / AWS_SUBNET_ID come from this host's IMDS (see below); they are optional and drop out
+# cleanly when unset, so only the hosts that need per-subnet slicing pass them.
+TOKEN=$(curl -s -X PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+MAC=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/network/interfaces/macs/ | head -1 | tr -d /)
+VPC=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/network/interfaces/macs/$MAC/vpc-id)
+SUBNET=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/network/interfaces/macs/$MAC/subnet-id)
+
 docker run -d --name ping-collector --restart unless-stopped --privileged --pid host \
   --network host --memory 512m \
   -e AWS_REGION=us-east-1 -e OMNI_BRIDGE_ENDPOINT=http://<bridge-private-ip>:4318 \
+  -e AWS_VPC_ID=$VPC -e AWS_SUBNET_ID=$SUBNET \
   -v /sys/fs/bpf:/sys/fs/bpf -v /sys:/sys -v /proc:/proc:ro \
   -v /opt/ping/collector-config.yaml:/etc/otelcol/config.yaml:ro \
   "$COLLECTOR" --config /etc/otelcol/config.yaml
@@ -188,7 +203,9 @@ RED = OBI native application metrics:
 
 `collector-config.yaml` adds AWS-flavoured resource attributes to every span/metric via
 a `transform` processor: `ec2.instance.id`, `aws.account.id`, `aws.region`, `host.ip`
-(alongside OBI's native `host.id` / `cloud.*`).
+(alongside OBI's native `host.id` / `cloud.*`), plus `aws.vpc.id` / `aws.subnet.id` when the
+host sets `AWS_VPC_ID` / `AWS_SUBNET_ID` (see section 1). `aws.subnet.id` is what lets a
+multi-subnet role — inventory on the us-east-1 rig — be sliced per subnet in the server RED.
 
 ---
 

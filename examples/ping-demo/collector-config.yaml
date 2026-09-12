@@ -40,6 +40,11 @@ processors:
   # AWS-flavored resource attributes on every span AND metric. OBI's EC2 detection
   # sets host.id / cloud.account.id / cloud.region; copy to the requested keys and
   # derive host.ip from the ip-a-b-c-d internal hostname.
+  # aws.vpc.id / aws.subnet.id are NOT in OBI's detection: they come from the host's IMDS,
+  # passed as AWS_VPC_ID / AWS_SUBNET_ID env at deploy and substituted at config load.
+  # The ${env:VAR:-} default form (not plain ${env:VAR}) lets this one shared file load
+  # cleanly on a host that lacks the env -- it omits the attribute instead of failing at
+  # load, so payment/audit stay safe if this file ever reaches them (KTD12, KTD8).
   transform/aws:
     error_mode: ignore
     trace_statements:
@@ -48,6 +53,8 @@ processors:
           - set(attributes["ec2.instance.id"], attributes["host.id"]) where attributes["host.id"] != nil
           - set(attributes["aws.account.id"], attributes["cloud.account.id"]) where attributes["cloud.account.id"] != nil
           - set(attributes["aws.region"], attributes["cloud.region"]) where attributes["cloud.region"] != nil
+          - set(attributes["aws.vpc.id"], "${env:AWS_VPC_ID:-}") where "${env:AWS_VPC_ID:-}" != ""
+          - set(attributes["aws.subnet.id"], "${env:AWS_SUBNET_ID:-}") where "${env:AWS_SUBNET_ID:-}" != ""
           - set(attributes["host.ip"], attributes["host.name"]) where attributes["host.name"] != nil
           - replace_pattern(attributes["host.ip"], "^ip-([0-9]+)-([0-9]+)-([0-9]+)-([0-9]+).*$", "$$1.$$2.$$3.$$4") where attributes["host.ip"] != nil
     metric_statements:
@@ -56,6 +63,8 @@ processors:
           - set(attributes["ec2.instance.id"], attributes["host.id"]) where attributes["host.id"] != nil
           - set(attributes["aws.account.id"], attributes["cloud.account.id"]) where attributes["cloud.account.id"] != nil
           - set(attributes["aws.region"], attributes["cloud.region"]) where attributes["cloud.region"] != nil
+          - set(attributes["aws.vpc.id"], "${env:AWS_VPC_ID:-}") where "${env:AWS_VPC_ID:-}" != ""
+          - set(attributes["aws.subnet.id"], "${env:AWS_SUBNET_ID:-}") where "${env:AWS_SUBNET_ID:-}" != ""
           - set(attributes["host.ip"], attributes["host.name"]) where attributes["host.name"] != nil
           - replace_pattern(attributes["host.ip"], "^ip-([0-9]+)-([0-9]+)-([0-9]+)-([0-9]+).*$", "$$1.$$2.$$3.$$4") where attributes["host.ip"] != nil
 
