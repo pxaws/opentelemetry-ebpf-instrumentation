@@ -1,0 +1,403 @@
+{
+ "cluster_statuses": [
+  {
+   "name": "egress_egress-pay.local:8080_8080_http_cluster_ecs-svc_7090664057429531321",
+   "added_via_api": true,
+   "host_statuses": [
+    {
+     "address": {
+      "socket_address": {
+       "address": "172.31.38.144",
+       "port_value": 80
+      }
+     },
+     "stats": [
+      {
+       "name": "cx_connect_fail"
+      },
+      {
+       "value": "2",
+       "name": "cx_total"
+      },
+      {
+       "name": "rq_error"
+      },
+      {
+       "value": "3",
+       "name": "rq_success"
+      },
+      {
+       "name": "rq_timeout"
+      },
+      {
+       "value": "3",
+       "name": "rq_total"
+      },
+      {
+       "type": "GAUGE",
+       "value": "2",
+       "name": "cx_active"
+      },
+      {
+       "type": "GAUGE",
+       "name": "rq_active"
+      },
+      {
+       "type": "GAUGE",
+       "name": "rq_pending_active"
+      }
+     ],
+     "health_status": {
+      "eds_health_status": "HEALTHY"
+     },
+     "weight": 1,
+     "locality": {
+      "region": "us-east-1",
+      "zone": "use1-az6"
+     }
+    }
+   ],
+   "circuit_breakers": {
+    "thresholds": [
+     {
+      "max_connections": 2147483647,
+      "max_pending_requests": 2147483647,
+      "max_requests": 2147483647,
+      "max_retries": 2147483647
+     },
+     {
+      "priority": "HIGH",
+      "max_connections": 1024,
+      "max_pending_requests": 1024,
+      "max_requests": 1024,
+      "max_retries": 3
+     }
+    ]
+   },
+   "observability_name": "egress_egress-pay.local:8080_8080_http_cluster_ecs-svc_7090664057429531321"
+  },
+  {
+   "name": "egress_egress-blog.local:8080_8080_http_cluster_ecs-svc_3101948703816464113",
+   "added_via_api": true,
+   "host_statuses": [
+    {
+     "address": {
+      "socket_address": {
+       "address": "172.31.45.21",
+       "port_value": 80
+      }
+     },
+     "stats": [
+      {
+       "name": "cx_connect_fail"
+      },
+      {
+       "value": "1",
+       "name": "cx_total"
+      },
+      {
+       "name": "rq_error"
+      },
+      {
+       "value": "1",
+       "name": "rq_success"
+      },
+      {
+       "name": "rq_timeout"
+      },
+      {
+       "value": "1",
+       "name": "rq_total"
+      },
+      {
+       "type": "GAUGE",
+       "value": "1",
+       "name": "cx_active"
+      },
+      {
+       "type": "GAUGE",
+       "name": "rq_active"
+      },
+      {
+       "type": "GAUGE",
+       "name": "rq_pending_active"
+      }
+     ],
+     "health_status": {
+      "eds_health_status": "HEALTHY"
+     },
+     "weight": 1,
+     "locality": {
+      "region": "us-east-1",
+      "zone": "use1-az6"
+     }
+    },
+    {
+     "address": {
+      "socket_address": {
+       "address": "172.31.32.69",
+       "port_value": 80
+      }
+     },
+     "stats": [
+      {
+       "name": "cx_connect_fail"
+      },
+      {
+       "name": "cx_total"
+      },
+      {
+       "name": "rq_error"
+      },
+      {
+       "name": "rq_success"
+      },
+      {
+       "name": "rq_timeout"
+      },
+      {
+       "name": "rq_total"
+      },
+      {
+       "type": "GAUGE",
+       "name": "cx_active"
+      },
+      {
+       "type": "GAUGE",
+       "name": "rq_active"
+      },
+      {
+       "type": "GAUGE",
+       "name": "rq_pending_active"
+      }
+     ],
+     "health_status": {
+      "eds_health_status": "HEALTHY"
+     },
+     "weight": 1,
+     "locality": {
+      "region": "us-east-1",
+      "zone": "use1-az6"
+     }
+    },
+    {
+     "address": {
+      "socket_address": {
+       "address": "172.31.35.96",
+       "port_value": 80
+      }
+     },
+     "stats": [
+      {
+       "name": "cx_connect_fail"
+      },
+      {
+       "value": "2",
+       "name": "cx_total"
+      },
+      {
+       "name": "rq_error"
+      },
+      {
+       "value": "2",
+       "name": "rq_success"
+      },
+      {
+       "name": "rq_timeout"
+      },
+      {
+       "value": "2",
+       "name": "rq_total"
+      },
+      {
+       "type": "GAUGE",
+       "value": "2",
+       "name": "cx_active"
+      },
+      {
+       "type": "GAUGE",
+       "name": "rq_active"
+      },
+      {
+       "type": "GAUGE",
+       "name": "rq_pending_active"
+      }
+     ],
+     "health_status": {
+      "eds_health_status": "HEALTHY"
+     },
+     "weight": 1,
+     "locality": {
+      "region": "us-east-1",
+      "zone": "use1-az6"
+     }
+    }
+   ],
+   "circuit_breakers": {
+    "thresholds": [
+     {
+      "max_connections": 2147483647,
+      "max_pending_requests": 2147483647,
+      "max_requests": 2147483647,
+      "max_retries": 2147483647
+     },
+     {
+      "priority": "HIGH",
+      "max_connections": 1024,
+      "max_pending_requests": 1024,
+      "max_requests": 1024,
+      "max_retries": 3
+     }
+    ]
+   },
+   "observability_name": "egress_egress-blog.local:8080_8080_http_cluster_ecs-svc_3101948703816464113"
+  },
+  {
+   "name": "egress_egress-shop.local:9090_9090_http_cluster_ecs-svc_9789423390458082167",
+   "added_via_api": true,
+   "host_statuses": [
+    {
+     "address": {
+      "socket_address": {
+       "address": "172.31.38.208",
+       "port_value": 80
+      }
+     },
+     "stats": [
+      {
+       "name": "cx_connect_fail"
+      },
+      {
+       "value": "2",
+       "name": "cx_total"
+      },
+      {
+       "name": "rq_error"
+      },
+      {
+       "value": "3",
+       "name": "rq_success"
+      },
+      {
+       "name": "rq_timeout"
+      },
+      {
+       "value": "3",
+       "name": "rq_total"
+      },
+      {
+       "type": "GAUGE",
+       "value": "2",
+       "name": "cx_active"
+      },
+      {
+       "type": "GAUGE",
+       "name": "rq_active"
+      },
+      {
+       "type": "GAUGE",
+       "name": "rq_pending_active"
+      }
+     ],
+     "health_status": {
+      "eds_health_status": "HEALTHY"
+     },
+     "weight": 1,
+     "locality": {
+      "region": "us-east-1",
+      "zone": "use1-az6"
+     }
+    }
+   ],
+   "circuit_breakers": {
+    "thresholds": [
+     {
+      "max_connections": 2147483647,
+      "max_pending_requests": 2147483647,
+      "max_requests": 2147483647,
+      "max_retries": 2147483647
+     },
+     {
+      "priority": "HIGH",
+      "max_connections": 1024,
+      "max_pending_requests": 1024,
+      "max_requests": 1024,
+      "max_retries": 3
+     }
+    ]
+   },
+   "observability_name": "egress_egress-shop.local:9090_9090_http_cluster_ecs-svc_9789423390458082167"
+  },
+  {
+   "name": "local_cluster",
+   "host_statuses": [
+    {
+     "address": {
+      "socket_address": {
+       "address": "172.31.34.176",
+       "port_value": 1
+      }
+     },
+     "stats": [
+      {
+       "name": "cx_connect_fail"
+      },
+      {
+       "name": "cx_total"
+      },
+      {
+       "name": "rq_error"
+      },
+      {
+       "name": "rq_success"
+      },
+      {
+       "name": "rq_timeout"
+      },
+      {
+       "name": "rq_total"
+      },
+      {
+       "type": "GAUGE",
+       "name": "cx_active"
+      },
+      {
+       "type": "GAUGE",
+       "name": "rq_active"
+      },
+      {
+       "type": "GAUGE",
+       "name": "rq_pending_active"
+      }
+     ],
+     "health_status": {
+      "eds_health_status": "HEALTHY"
+     },
+     "weight": 1,
+     "locality": {
+      "region": "us-east-1",
+      "zone": "use1-az6"
+     }
+    }
+   ],
+   "circuit_breakers": {
+    "thresholds": [
+     {
+      "max_connections": 1024,
+      "max_pending_requests": 1024,
+      "max_requests": 1024,
+      "max_retries": 3
+     },
+     {
+      "priority": "HIGH",
+      "max_connections": 1024,
+      "max_pending_requests": 1024,
+      "max_requests": 1024,
+      "max_retries": 3
+     }
+    ]
+   },
+   "observability_name": "local_cluster"
+  }
+ ]
+}
