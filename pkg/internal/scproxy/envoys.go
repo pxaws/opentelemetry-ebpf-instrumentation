@@ -28,7 +28,6 @@ const (
 type Sidecar struct {
 	PID   int32
 	NetNS uint64 // inode of /proc/<pid>/ns/net; the key VIP state is kept under
-	MntNS uint64
 	// AdminSocket is reached through /proc/<pid>/root, so the host process
 	// needs no setns and no mount of its own.
 	AdminSocket string
@@ -132,17 +131,13 @@ func inspectPid(procRoot, name string) (Sidecar, bool) {
 	if err != nil {
 		return Sidecar{}, false
 	}
-	mntNS, err := readNSInode(procRoot, name, "mnt")
-	if err != nil {
-		return Sidecar{}, false
-	}
 
 	sock := filepath.Join(procRoot, name, "root", adminSocketRel)
 	if info, err := os.Stat(sock); err != nil || info.IsDir() {
 		return Sidecar{}, false
 	}
 
-	return Sidecar{PID: int32(pid), NetNS: netNS, MntNS: mntNS, AdminSocket: sock}, true
+	return Sidecar{PID: int32(pid), NetNS: netNS, AdminSocket: sock}, true
 }
 
 // isEnvoy prefers the exe link, which a process cannot rename. comm is the

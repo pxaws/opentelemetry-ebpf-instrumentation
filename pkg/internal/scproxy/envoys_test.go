@@ -67,9 +67,9 @@ func TestFindSidecars_SkipsRelayAndCollapsesPerNetNS(t *testing.T) {
 	sidecars, err := FindSidecars(root)
 	require.NoError(t, err)
 	assert.Equal(t, []Sidecar{
-		{PID: 100, NetNS: 4026532553, MntNS: 4026532624, AdminSocket: filepath.Join(root, "100", "root", adminSocketRel)},
-		{PID: 200, NetNS: 4026532600, MntNS: 4026532601, AdminSocket: filepath.Join(root, "200", "root", adminSocketRel)},
-		{PID: 300, NetNS: 4026532700, MntNS: 4026532701, AdminSocket: filepath.Join(root, "300", "root", adminSocketRel)},
+		{PID: 100, NetNS: 4026532553, AdminSocket: filepath.Join(root, "100", "root", adminSocketRel)},
+		{PID: 200, NetNS: 4026532600, AdminSocket: filepath.Join(root, "200", "root", adminSocketRel)},
+		{PID: 300, NetNS: 4026532700, AdminSocket: filepath.Join(root, "300", "root", adminSocketRel)},
 	}, sidecars)
 }
 
@@ -87,7 +87,6 @@ func TestFindSidecars_PicksPidWithSocket(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, sidecars, 1)
 	assert.Equal(t, int32(150), sidecars[0].PID)
-	assert.Equal(t, uint64(4026532624), sidecars[0].MntNS)
 }
 
 func TestFindSidecars_FallsBackToComm(t *testing.T) {

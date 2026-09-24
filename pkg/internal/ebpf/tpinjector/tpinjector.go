@@ -78,7 +78,7 @@ func New(cfg *obi.Config) *Tracer {
 	}
 	if cfg.EBPF.ContextPropagation.HasTCP() {
 		// the map is created at load time, after New; resolve it on each write
-		p.proxyNames = newProxyBorrower(procRoot, lazyMap{get: func() *ebpf.Map {
+		p.proxyNames = newProxyBorrower(cfg.SCProxy.ProcRootOrDefault(), lazyMap{get: func() *ebpf.Map {
 			return p.bpfObjects.ProxySvcNameByPid
 		}}, log)
 	}

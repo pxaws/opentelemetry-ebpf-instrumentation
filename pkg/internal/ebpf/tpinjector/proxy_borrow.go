@@ -26,8 +26,6 @@ import (
 // in the same network namespace, through proxy_svc_name_by_pid. The BPF side stamps a
 // borrowed name only toward non-loopback peers (bpf/tpinjector/proxy_stamp_policy.h).
 
-const procRoot = "/proc"
-
 // proxyReconcileInterval bounds how long a new sidecar goes unnamed and how long a
 // stale entry can outlive its process.
 const proxyReconcileInterval = 5 * time.Second
@@ -67,6 +65,7 @@ func (l lazyMap) Delete(key any) error {
 type proxyEntry struct {
 	startTime uint64
 	name      string
+	value     [svcNameMaxLen + 1]byte // name encoded as svc_name_value_t
 }
 
 type proxyBorrower struct {
@@ -161,9 +160,8 @@ func (b *proxyBorrower) reconcile() {
 		if b.written[pid] == entry {
 			continue
 		}
-		val, _ := encodeServiceName(entry.name) // desiredEntries keeps only encodable names
 		key := pid
-		if err := b.names.Put(&key, &val); err != nil {
+		if err := b.names.Put(&key, &entry.value); err != nil {
 			b.log.Debug("failed to write borrowed name", "pid", pid, "error", err)
 			continue
 		}
@@ -195,23 +193,31 @@ func (b *proxyBorrower) desiredEntries(envoys map[uint64][]int32) map[uint32]pro
 		namesByNetNS[netNS][name] = struct{}{}
 	}
 
+	// One procfs handle per tick: procRoot never changes, and NewFS stats the mount.
+	fs, err := procfs.NewFS(b.procRoot)
+	if err != nil {
+		b.log.Debug("cannot open procfs", "root", b.procRoot, "error", err)
+		return map[uint32]proxyEntry{}
+	}
+
 	want := map[uint32]proxyEntry{}
 	for netNS, pids := range envoys {
 		name, ok := soleName(namesByNetNS[netNS])
 		if !ok {
 			continue
 		}
-		if _, ok := encodeServiceName(name); !ok {
+		value, ok := encodeServiceName(name)
+		if !ok {
 			b.log.Debug("service name exceeds TCP-option limit, sidecar not named",
 				"name", name, "len", len(name), "limit", svcNameMaxLen, "netns", netNS)
 			continue
 		}
 		for _, pid := range pids {
-			startTime, err := b.startTime(pid)
+			startTime, err := startTime(fs, pid)
 			if err != nil {
 				continue // gone since the scan
 			}
-			want[uint32(pid)] = proxyEntry{startTime: startTime, name: name}
+			want[uint32(pid)] = proxyEntry{startTime: startTime, name: name, value: value}
 		}
 	}
 	return want
@@ -228,11 +234,7 @@ func soleName(names map[string]struct{}) (string, bool) {
 }
 
 // startTime reads field 22 of /proc/<pid>/stat.
-func (b *proxyBorrower) startTime(pid int32) (uint64, error) {
-	fs, err := procfs.NewFS(b.procRoot)
-	if err != nil {
-		return 0, err
-	}
+func startTime(fs procfs.FS, pid int32) (uint64, error) {
 	proc, err := fs.Proc(int(pid))
 	if err != nil {
 		return 0, err

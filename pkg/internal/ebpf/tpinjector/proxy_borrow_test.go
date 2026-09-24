@@ -281,3 +281,14 @@ func TestProxyBorrow_OnlyWithTCPPropagation(t *testing.T) {
 		assert.Equal(t, want, New(cfg).proxyNames != nil, mode)
 	}
 }
+
+func TestNew_BorrowerUsesConfiguredProcRoot(t *testing.T) {
+	cfg := &obi.Config{}
+	require.NoError(t, cfg.EBPF.ContextPropagation.UnmarshalText([]byte("tcp")))
+	cfg.SCProxy.ProcRoot = "/host/proc"
+	require.NotNil(t, New(cfg).proxyNames)
+	assert.Equal(t, "/host/proc", New(cfg).proxyNames.procRoot)
+
+	cfg.SCProxy.ProcRoot = ""
+	assert.Equal(t, "/proc", New(cfg).proxyNames.procRoot)
+}

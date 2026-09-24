@@ -7,14 +7,7 @@
 
 #include <tpinjector/proxy_stamp_policy.h>
 
-// msg->remote_ip4 holds the address in network order, so the test builds it from the
-// dotted-quad bytes in wire order rather than from a host-order integer.
-static u32 ip4(u8 a, u8 b, u8 c, u8 d) {
-    const u8 bytes[4] = {a, b, c, d};
-    u32 v;
-    memcpy(&v, bytes, sizeof(v));
-    return v;
-}
+#include "test_ip4.h"
 
 static void
 expect(bool has_direct, bool has_proxy, u32 remote_ip4, svc_name_source_t want, const char *msg) {
