@@ -53,6 +53,8 @@ type Tracer struct {
 	seenNetns               *expirable.LRU[uint64, struct{}]
 	netnsAttempts           *expirable.LRU[uint64, int]
 	backfillDisabled        bool
+	// nil unless TCP context propagation is on
+	proxyNames *proxyBorrower
 }
 
 const (
@@ -67,13 +69,20 @@ const (
 
 func New(cfg *obi.Config) *Tracer {
 	log := slog.With("component", "tpinjector")
-	return &Tracer{
+	p := &Tracer{
 		log:           log,
 		cfg:           cfg,
 		fionreadProbe: sockhashFIONREADProbe,
 		seenNetns:     expirable.NewLRU[uint64, struct{}](seenNetnsCacheLen, nil, seenNetnsTTL),
 		netnsAttempts: expirable.NewLRU[uint64, int](seenNetnsCacheLen, nil, seenNetnsTTL),
 	}
+	if cfg.EBPF.ContextPropagation.HasTCP() {
+		// the map is created at load time, after New; resolve it on each write
+		p.proxyNames = newProxyBorrower(procRoot, lazyMap{get: func() *ebpf.Map {
+			return p.bpfObjects.ProxySvcNameByPid
+		}}, log)
+	}
+	return p
 }
 
 // AllowPID backfills sock_dir with pre-existing sockets: iter/tcp only walks the opener's netns
@@ -94,16 +103,12 @@ func (p *Tracer) recordServiceName(pid app.PID, fi *exec.FileInfo) {
 	if name == "" {
 		return
 	}
-	if len(name) > svcNameMaxLen {
-		// Never truncate: a truncated name could merge unrelated services.
+	val, ok := encodeServiceName(name)
+	if !ok {
 		p.log.Debug("service name exceeds TCP-option limit, not propagating",
 			"name", name, "len", len(name), "limit", svcNameMaxLen)
 		return
 	}
-
-	var val [svcNameMaxLen + 1]byte
-	copy(val[:svcNameMaxLen], name)
-	val[svcNameMaxLen] = byte(len(name))
 
 	key := uint32(pid)
 	if err := p.bpfObjects.SvcNameByPid.Update(&key, &val, ebpf.UpdateAny); err != nil {
@@ -111,8 +116,30 @@ func (p *Tracer) recordServiceName(pid app.PID, fi *exec.FileInfo) {
 	}
 }
 
+// encodeServiceName lays name out as svc_name_value_t. It refuses names over the
+// limit: a truncated name could merge unrelated services.
+func encodeServiceName(name string) ([svcNameMaxLen + 1]byte, bool) {
+	var val [svcNameMaxLen + 1]byte
+	if len(name) > svcNameMaxLen {
+		return val, false
+	}
+	copy(val[:svcNameMaxLen], name)
+	val[svcNameMaxLen] = byte(len(name))
+	return val, true
+}
+
+// offerNameToSidecar lets a Service Connect Envoy in this app's task borrow its name
+// (EXPERIMENTAL — TCP service-name propagation).
+func (p *Tracer) offerNameToSidecar(pid app.PID, fi *exec.FileInfo) {
+	if p.proxyNames == nil || fi == nil {
+		return
+	}
+	p.proxyNames.allowApp(pid, fi.ServiceAttrs().UID.Name)
+}
+
 func (p *Tracer) AllowPID(pid app.PID, _ uint32, fi *exec.FileInfo) {
 	p.recordServiceName(pid, fi)
+	p.offerNameToSidecar(pid, fi)
 
 	p.iterMu.Lock()
 	defer p.iterMu.Unlock()
@@ -168,6 +195,9 @@ func (p *Tracer) AllowPID(pid app.PID, _ uint32, fi *exec.FileInfo) {
 }
 
 func (p *Tracer) BlockPID(pid app.PID, _ uint32) {
+	if p.proxyNames != nil {
+		p.proxyNames.blockApp(pid)
+	}
 	if p.bpfObjects.SvcNameByPid == nil {
 		return
 	}
@@ -374,6 +404,10 @@ func (p *Tracer) Run(ctx context.Context, _ *ebpfcommon.EBPFEventContext, _ *msg
 		if err := it.Run(p.log); err != nil {
 			p.log.Error("error running iterator", "error", err)
 		}
+	}
+
+	if p.proxyNames != nil {
+		go p.proxyNames.run(ctx)
 	}
 
 	<-ctx.Done()

@@ -44,22 +44,13 @@ type Sidecar struct {
 func FindSidecars(procRoot string) ([]Sidecar, error) {
 	log := slog.With("component", "scproxy.FindSidecars")
 
-	hostNetNS, err := readNSInode(procRoot, initPID, "net")
+	all, err := findTaskEnvoys(procRoot)
 	if err != nil {
-		return nil, fmt.Errorf("reading host network namespace: %w", err)
-	}
-
-	entries, err := os.ReadDir(procRoot)
-	if err != nil {
-		return nil, fmt.Errorf("listing %s: %w", procRoot, err)
+		return nil, err
 	}
 
 	byNetNS := map[uint64]Sidecar{}
-	for _, e := range entries {
-		sc, ok := inspectPid(procRoot, e.Name())
-		if !ok || sc.NetNS == hostNetNS {
-			continue
-		}
+	for _, sc := range all {
 		// ReadDir sorts names lexically, not numerically, so keep the lowest
 		// pid explicitly for a stable choice.
 		if prev, seen := byNetNS[sc.NetNS]; seen && prev.PID < sc.PID {
@@ -76,6 +67,54 @@ func FindSidecars(procRoot string) ([]Sidecar, error) {
 
 	log.Debug("found sidecar envoys", "count", len(sidecars))
 	return sidecars, nil
+}
+
+// FindEnvoyPIDs returns every sidecar Envoy pid, sorted, grouped by network
+// namespace, with the same rules as FindSidecars. A sidecar may run more than
+// one envoy process, and each one can write to a connection.
+func FindEnvoyPIDs(procRoot string) (map[uint64][]int32, error) {
+	all, err := findTaskEnvoys(procRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	byNetNS := map[uint64][]int32{}
+	for _, sc := range all {
+		byNetNS[sc.NetNS] = append(byNetNS[sc.NetNS], sc.PID)
+	}
+	for _, pids := range byNetNS {
+		slices.Sort(pids)
+	}
+	return byNetNS, nil
+}
+
+// ReadNetNS returns the network namespace inode of pid.
+func ReadNetNS(procRoot string, pid int32) (uint64, error) {
+	return readNSInode(procRoot, strconv.Itoa(int(pid)), "net")
+}
+
+// findTaskEnvoys lists every Envoy pid with a reachable admin socket outside
+// the host network namespace.
+func findTaskEnvoys(procRoot string) ([]Sidecar, error) {
+	hostNetNS, err := readNSInode(procRoot, initPID, "net")
+	if err != nil {
+		return nil, fmt.Errorf("reading host network namespace: %w", err)
+	}
+
+	entries, err := os.ReadDir(procRoot)
+	if err != nil {
+		return nil, fmt.Errorf("listing %s: %w", procRoot, err)
+	}
+
+	var found []Sidecar
+	for _, e := range entries {
+		sc, ok := inspectPid(procRoot, e.Name())
+		if !ok || sc.NetNS == hostNetNS {
+			continue
+		}
+		found = append(found, sc)
+	}
+	return found, nil
 }
 
 // inspectPid reports whether pid is an Envoy with a reachable admin socket.

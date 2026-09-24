@@ -46,9 +46,11 @@
 #include <tpinjector/h2_parse.h>
 #include <tpinjector/inject_policy.h>
 #include <tpinjector/peer_key_policy.h>
+#include <tpinjector/proxy_stamp_policy.h>
 #include <tpinjector/maps/sk_h2_flags.h>
 #include <tpinjector/maps/sk_h2_conn_flag.h>
 #include <tpinjector/maps/sk_svc_name_map.h>
+#include <tpinjector/maps/proxy_svc_name_by_pid.h>
 #include <tpinjector/maps/sk_tp_info_pid_map.h>
 #include <tpinjector/maps/svc_name_by_pid.h>
 
@@ -1238,6 +1240,25 @@ static __always_inline bool handle_existing_tp_pid(struct sk_msg_md *msg,
     return false;
 }
 
+// EXPERIMENTAL — TCP service-name propagation.
+// The name a server response carries: the writer's own, else the one a Service Connect
+// Envoy borrows from its task's app, gated on the peer address by svc_name_source.
+static __always_inline const svc_name_value_t *lookup_response_svc_name(struct sk_msg_md *msg,
+                                                                        const u32 pid) {
+    const svc_name_value_t *direct = bpf_map_lookup_elem(&svc_name_by_pid, &pid);
+    const svc_name_value_t *proxy =
+        direct ? NULL : bpf_map_lookup_elem(&proxy_svc_name_by_pid, &pid);
+
+    switch (svc_name_source(direct != NULL, proxy != NULL, msg->remote_ip4)) {
+    case k_svc_name_direct:
+        return direct;
+    case k_svc_name_proxy:
+        return proxy;
+    default:
+        return NULL;
+    }
+}
+
 // EXPERIMENTAL — service-name propagation, write scheduling.
 // Runs on every sk_msg send. On a SERVER (passive) socket it resolves the writing
 // process's local service.name (from the user-space-populated svc_name_by_pid map)
@@ -1259,7 +1280,7 @@ static __always_inline bool schedule_service_name_option(struct sk_msg_md *msg, 
 
     if (st->state == k_svc_state_server_pending) {
         const u32 pid = pid_from_pid_tgid(id);
-        const svc_name_value_t *name = bpf_map_lookup_elem(&svc_name_by_pid, &pid);
+        const svc_name_value_t *name = lookup_response_svc_name(msg, pid);
         if (name && name->len > 0 && name->len <= K_SVC_NAME_MAX_LEN) {
             __builtin_memcpy(st->name.name, name->name, K_SVC_NAME_MAX_LEN);
             st->name.len = name->len;

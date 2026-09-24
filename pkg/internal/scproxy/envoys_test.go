@@ -150,3 +150,34 @@ func TestParseNSLink(t *testing.T) {
 	_, err = parseNSLink("net:[abc]", "net")
 	require.Error(t, err)
 }
+
+func TestFindEnvoyPIDs_KeepsEveryPidPerNetNS(t *testing.T) {
+	root := t.TempDir()
+	writeFakeProc(t, root,
+		hostInit(),
+		fakeProc{pid: 400, exe: "/usr/bin/envoy", netNS: hostNetNS, mntNS: 4026532397, socket: true}, // xDS relay
+		fakeProc{pid: 101, exe: "/usr/bin/envoy", netNS: 4026532553, mntNS: 4026532624, socket: true},
+		fakeProc{pid: 100, exe: "/usr/bin/envoy", netNS: 4026532553, mntNS: 4026532624, socket: true},
+		fakeProc{pid: 200, exe: "/usr/bin/envoy", netNS: 4026532600, mntNS: 4026532601, socket: true},
+		fakeProc{pid: 500, exe: "/usr/bin/python3", netNS: 4026532600, mntNS: 4026532801, socket: true},
+	)
+
+	pids, err := FindEnvoyPIDs(root)
+	require.NoError(t, err)
+	assert.Equal(t, map[uint64][]int32{
+		4026532553: {100, 101},
+		4026532600: {200},
+	}, pids)
+}
+
+func TestReadNetNS(t *testing.T) {
+	root := t.TempDir()
+	writeFakeProc(t, root, fakeProc{pid: 42, exe: "/usr/bin/python3", netNS: 4026532553, mntNS: 4026532624})
+
+	inode, err := ReadNetNS(root, 42)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(4026532553), inode)
+
+	_, err = ReadNetNS(root, 43)
+	require.Error(t, err)
+}
