@@ -37,6 +37,7 @@ import (
 	"go.opentelemetry.io/obi/pkg/filter"
 	"go.opentelemetry.io/obi/pkg/health"
 	"go.opentelemetry.io/obi/pkg/internal/avoidedsvc"
+	"go.opentelemetry.io/obi/pkg/internal/scproxy"
 	"go.opentelemetry.io/obi/pkg/kube"
 	"go.opentelemetry.io/obi/pkg/kube/kubeflags"
 	"go.opentelemetry.io/obi/pkg/transform"
@@ -222,6 +223,10 @@ var DefaultConfig = Config{
 		BPFFSPath:      "/sys/fs/bpf/",
 		InstrumentCuda: config.CudaModeAuto,
 	},
+	SCProxy: scproxy.Config{
+		Interval: scproxy.DefaultInterval,
+		ProcRoot: scproxy.DefaultProcRoot,
+	},
 	NameResolver: &transform.NameResolverConfig{
 		Sources:  []transform.Source{transform.SourceK8s},
 		CacheLen: 1024,
@@ -378,6 +383,9 @@ type Config struct {
 	Traces       otelcfg.TracesConfig          `yaml:"otel_traces_export"`
 	Prometheus   prom.PrometheusConfig         `yaml:"prometheus_export"`
 	TracePrinter debug.TracePrinter            `yaml:"trace_printer" env:"OTEL_EBPF_TRACE_PRINTER"`
+
+	// SCProxy names the callee of calls through an ECS Service Connect VIP. EXPERIMENTAL (PoC).
+	SCProxy scproxy.Config `yaml:"scproxy"`
 
 	// Exec allows selecting the instrumented executable whose complete path contains the Exec value.
 	//

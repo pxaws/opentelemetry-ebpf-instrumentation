@@ -18,7 +18,9 @@ import (
 	"go.opentelemetry.io/obi/pkg/ebpf"
 	ebpfcommon "go.opentelemetry.io/obi/pkg/ebpf/common"
 	"go.opentelemetry.io/obi/pkg/export/imetrics"
+	"go.opentelemetry.io/obi/pkg/internal/ebpf/tpinjector"
 	"go.opentelemetry.io/obi/pkg/internal/helpers/maps"
+	"go.opentelemetry.io/obi/pkg/internal/scproxy"
 	"go.opentelemetry.io/obi/pkg/obi"
 	"go.opentelemetry.io/obi/pkg/pipe/msg"
 )
@@ -77,4 +79,20 @@ func TestCommonTracersPrunedAfterLoadFailure(t *testing.T) {
 	ta.notifyProcessDeletion(ie)
 	assert.NotEmpty(t, okTracer.blocked)
 	assert.Empty(t, failedTracer.blocked)
+}
+
+// The span pipeline must only see tpinjector once ProcessTracer.Init has kept it as loaded.
+func TestLoadedTPInjectorFillsPeerNameHolder(t *testing.T) {
+	tp := tpinjector.New(&obi.Config{})
+
+	unloaded := &traceAttacher{commonTracers: []ebpf.Tracer{tp}, SCPeerNames: &scproxy.PeerNameHolder{}}
+	unloaded.dropUnloadedTracers(nil)
+	names, err := unloaded.SCPeerNames.PeerNames()
+	require.NoError(t, err, "a holder without a loaded tpinjector must report no names and no error")
+	assert.Empty(t, names)
+
+	loaded := &traceAttacher{commonTracers: []ebpf.Tracer{&recordingTracer{}, tp}, SCPeerNames: &scproxy.PeerNameHolder{}}
+	loaded.dropUnloadedTracers([]ebpf.Tracer{tp})
+	_, err = loaded.SCPeerNames.PeerNames()
+	require.Error(t, err, "the holder must reach tpinjector, whose BPF map is not loaded in this test")
 }

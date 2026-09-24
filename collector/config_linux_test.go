@@ -8,6 +8,7 @@ package collector
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -70,6 +71,26 @@ func TestReceiverConfigUnmarshalLegacy(t *testing.T) {
 	require.NoError(t, component.Unmarshal(cfg))
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, []int{8080}, cfg.runtime.Port.AllValues())
+}
+
+func TestReceiverConfigUnmarshalLegacySCProxy(t *testing.T) {
+	cfg := newTestReceiverConfig(t)
+	component := confmap.NewFromStringMap(map[string]any{
+		"open_port": "8080",
+		"scproxy": map[string]any{
+			"enabled":         true,
+			"interval":        "3s",
+			"block_list_file": "/tmp/scproxy-block",
+			"proc_root":       "/host/proc",
+		},
+	})
+
+	require.NoError(t, component.Unmarshal(cfg))
+	require.NoError(t, cfg.Validate())
+	require.True(t, cfg.runtime.SCProxy.Enabled)
+	require.Equal(t, 3*time.Second, cfg.runtime.SCProxy.Interval)
+	require.Equal(t, "/tmp/scproxy-block", cfg.runtime.SCProxy.BlockListFile)
+	require.Equal(t, "/host/proc", cfg.runtime.SCProxy.ProcRoot)
 }
 
 func TestReceiverConfigRejectsStandaloneSections(t *testing.T) {

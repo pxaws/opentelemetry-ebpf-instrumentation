@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/obi/pkg/export/imetrics"
 	"go.opentelemetry.io/obi/pkg/export/otel/otelcfg"
 	netebpf "go.opentelemetry.io/obi/pkg/internal/netolly/ebpf"
+	"go.opentelemetry.io/obi/pkg/internal/scproxy"
 	statsebpf "go.opentelemetry.io/obi/pkg/internal/statsolly/ebpf"
 	"go.opentelemetry.io/obi/pkg/kube"
 	"go.opentelemetry.io/obi/pkg/pipe/msg"
@@ -70,6 +71,11 @@ type ContextInfo struct {
 	// DynamicPIDSelector, when set, restricts App O11y, NetO11y, and StatsO11y signals to
 	// the runtime-selected PIDs for each signal view. Pass via instrumenter.WithDynamicPIDSelector.
 	DynamicPIDSelector selection.MultiSignalPIDSelector
+
+	// SCPeerNames carries the names tpinjector learns per backend address from the
+	// process discovery, which loads tpinjector lazily, to the span pipeline, which is
+	// built first. EXPERIMENTAL (PoC).
+	SCPeerNames *scproxy.PeerNameHolder
 }
 
 // AppO11y stores context information that is only required for application observability.

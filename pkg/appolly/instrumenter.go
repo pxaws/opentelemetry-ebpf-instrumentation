@@ -99,11 +99,16 @@ func newGraphBuilder(
 		routerToKubeDecorator, kubeToContainerDecorator,
 	), swarm.WithID("KubeDecorator"))
 
-	containerDecoratorToNameResolver := msg2.QueueFromConfig[[]request.Span](config, "containerDecoratorToNameResolver")
+	containerDecoratorToSCPeerName := msg2.QueueFromConfig[[]request.Span](config, "containerDecoratorToSCPeerName")
 	swi.Add(transform.DockerDecoratorProvider(
 		ctxInfo,
-		kubeToContainerDecorator, containerDecoratorToNameResolver,
+		kubeToContainerDecorator, containerDecoratorToSCPeerName,
 	), swarm.WithID("DockerDecorator"))
+
+	containerDecoratorToNameResolver := msg2.QueueFromConfig[[]request.Span](config, "containerDecoratorToNameResolver")
+	swi.Add(transform.SCPeerNameProvider(ctxInfo, &config.SCProxy,
+		containerDecoratorToSCPeerName, containerDecoratorToNameResolver),
+		swarm.WithID("ServiceConnectPeerName"))
 
 	nameResolverToAttrFilter := msg2.QueueFromConfig[[]request.Span](config, "nameResolverToAttrFilter")
 	swi.Add(transform.NameResolutionProvider(ctxInfo, config.NameResolver,

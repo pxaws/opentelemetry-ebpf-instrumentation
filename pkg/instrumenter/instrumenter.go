@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/obi/pkg/export/otel/otelcfg"
 	"go.opentelemetry.io/obi/pkg/health"
 	"go.opentelemetry.io/obi/pkg/internal/appolly"
+	"go.opentelemetry.io/obi/pkg/internal/scproxy"
 	"go.opentelemetry.io/obi/pkg/kube"
 	netagent "go.opentelemetry.io/obi/pkg/netolly/agent"
 	"go.opentelemetry.io/obi/pkg/netolly/flowdef"
@@ -219,6 +220,7 @@ func BuildCommonContextInfo(
 	ctxInfo := &global.ContextInfo{
 		Prometheus:          promMgr,
 		OTELMetricsExporter: &otelcfg.MetricsExporterInstancer{Cfg: &config.OTELMetrics},
+		SCPeerNames:         &scproxy.PeerNameHolder{},
 	}
 	// Node metadata must be resolved before the internal-metrics reporter is
 	// created, so the reporter's OTLP resource carries host metadata (host.id,

@@ -20,10 +20,12 @@ import (
 	"go.opentelemetry.io/obi/pkg/ebpf"
 	ebpfcommon "go.opentelemetry.io/obi/pkg/ebpf/common"
 	"go.opentelemetry.io/obi/pkg/export/imetrics"
+	"go.opentelemetry.io/obi/pkg/internal/ebpf/tpinjector"
 	"go.opentelemetry.io/obi/pkg/internal/helpers/maps"
 	javaagent "go.opentelemetry.io/obi/pkg/internal/java"
 	"go.opentelemetry.io/obi/pkg/internal/jvmtools"
 	"go.opentelemetry.io/obi/pkg/internal/nodejs"
+	"go.opentelemetry.io/obi/pkg/internal/scproxy"
 	"go.opentelemetry.io/obi/pkg/internal/transform/route/harvest"
 	"go.opentelemetry.io/obi/pkg/obi"
 	"go.opentelemetry.io/obi/pkg/pipe/msg"
@@ -84,6 +86,9 @@ type traceAttacher struct {
 	processAgeFunc func(app.PID) time.Duration
 
 	DynamicPIDSelector *DynamicPIDSelector
+
+	// SCPeerNames receives tpinjector once it has loaded. EXPERIMENTAL (PoC).
+	SCPeerNames *scproxy.PeerNameHolder
 }
 
 type executableTracer struct {
@@ -314,6 +319,18 @@ func (ta *traceAttacher) dropUnloadedTracers(loadedPrograms []ebpf.Tracer) {
 		return !slices.Contains(loadedPrograms, ct)
 	})
 	ta.commonTracersLoaded = true
+	ta.publishPeerNames()
+}
+
+// publishPeerNames hands the loaded tpinjector to the span pipeline. It runs only after
+// ProcessTracer.Init, so the holder never sees a tracer whose BPF maps aren't loaded.
+func (ta *traceAttacher) publishPeerNames() {
+	for _, ct := range ta.commonTracers {
+		if tp, ok := ct.(*tpinjector.Tracer); ok {
+			ta.SCPeerNames.Set(tp)
+			return
+		}
+	}
 }
 
 func (ta *traceAttacher) withCommonTracersGroup(tracers []ebpf.Tracer) []ebpf.Tracer {

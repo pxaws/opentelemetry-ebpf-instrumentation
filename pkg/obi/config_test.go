@@ -36,6 +36,7 @@ import (
 	"go.opentelemetry.io/obi/pkg/health"
 	"go.opentelemetry.io/obi/pkg/internal/avoidedsvc"
 	"go.opentelemetry.io/obi/pkg/internal/pipe/cidr"
+	"go.opentelemetry.io/obi/pkg/internal/scproxy"
 	"go.opentelemetry.io/obi/pkg/kube"
 	"go.opentelemetry.io/obi/pkg/kube/kubeflags"
 	"go.opentelemetry.io/obi/pkg/netolly/flowdef"
@@ -360,6 +361,10 @@ discovery:
 			WildcardChar:              "*",
 			MaxPathSegmentCardinality: 10,
 		},
+		SCProxy: scproxy.Config{
+			Interval: scproxy.DefaultInterval,
+			ProcRoot: scproxy.DefaultProcRoot,
+		},
 		NameResolver: &transform.NameResolverConfig{
 			Sources:  []transform.Source{transform.SourceK8s, transform.SourceDNS},
 			CacheLen: 1024,
@@ -510,6 +515,43 @@ jvm_runtime_metrics:
 	require.NoError(t, err)
 
 	assert.Equal(t, 2*time.Second, cfg.JVMRuntimeMetrics.SamplingInterval)
+}
+
+func TestConfig_SCProxyDefaultsOff(t *testing.T) {
+	cfg, err := LoadConfig(nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, scproxy.Config{Interval: 10 * time.Second, ProcRoot: "/proc"}, cfg.SCProxy)
+}
+
+func TestConfig_SCProxyFromYAML(t *testing.T) {
+	cfg, err := LoadConfig(bytes.NewBufferString(`
+scproxy:
+  enabled: true
+  interval: 3s
+  block_list_file: /tmp/scproxy-block
+  proc_root: /host/proc
+`))
+	require.NoError(t, err)
+
+	assert.Equal(t, scproxy.Config{
+		Enabled:       true,
+		Interval:      3 * time.Second,
+		BlockListFile: "/tmp/scproxy-block",
+		ProcRoot:      "/host/proc",
+	}, cfg.SCProxy)
+}
+
+func TestConfig_SCProxyFromEnv(t *testing.T) {
+	t.Setenv("OTEL_EBPF_SCPROXY_ENABLED", "true")
+	t.Setenv("OTEL_EBPF_SCPROXY_INTERVAL", "5s")
+
+	cfg, err := LoadConfig(nil)
+	require.NoError(t, err)
+
+	assert.True(t, cfg.SCProxy.Enabled)
+	assert.Equal(t, 5*time.Second, cfg.SCProxy.Interval)
+	assert.Equal(t, "/proc", cfg.SCProxy.ProcRoot)
 }
 
 // An unknown feature name must abort config loading, not be silently ignored.

@@ -154,6 +154,7 @@ func (pf *ProcessFinder) Start(ctx context.Context, opts ...ProcessFinderStartOp
 		SpanSignalsShortcut: pf.tracesInput,
 		RuntimeMetrics:      pf.runtimeMetrics,
 		DynamicPIDSelector:  startConfig.dynamicPIDSelector,
+		SCPeerNames:         pf.ctxInfo.SCPeerNames,
 
 		InputInstrumentables: storedExecutableTypes,
 		EbpfEventContext:     pf.ebpfEventContext,
