@@ -76,7 +76,7 @@ func New(cfg *obi.Config) *Tracer {
 		seenNetns:     expirable.NewLRU[uint64, struct{}](seenNetnsCacheLen, nil, seenNetnsTTL),
 		netnsAttempts: expirable.NewLRU[uint64, int](seenNetnsCacheLen, nil, seenNetnsTTL),
 	}
-	if cfg.EBPF.ContextPropagation.HasTCP() {
+	if cfg.EBPF.ContextPropagation.HasTCP() && cfg.SCProxy.Enabled {
 		// the map is created at load time, after New; resolve it on each write
 		p.proxyNames = newProxyBorrower(cfg.SCProxy.ProcRootOrDefault(), lazyMap{get: func() *ebpf.Map {
 			return p.bpfObjects.ProxySvcNameByPid

@@ -114,7 +114,7 @@ func TestSCPeerName_NameReachesHTTPClientMetricAttribute(t *testing.T) {
 	assert.Equal(t, "blog-service", kv.Value.AsString())
 }
 
-func runSCPeerNameProvider(t *testing.T, cfg *scproxy.Config, spans []request.Span) []request.Span {
+func runSCPeerNameProvider(t *testing.T, cfg *scproxy.SCProxyConfig, spans []request.Span) []request.Span {
 	t.Helper()
 	input := msg.NewQueue[[]request.Span](msg.ChannelBufferLen(10))
 	output := msg.NewQueue[[]request.Span](msg.ChannelBufferLen(10))
@@ -129,7 +129,7 @@ func runSCPeerNameProvider(t *testing.T, cfg *scproxy.Config, spans []request.Sp
 }
 
 func TestSCPeerNameProvider_DisabledBypasses(t *testing.T) {
-	out := runSCPeerNameProvider(t, &scproxy.Config{Enabled: false}, []request.Span{vipClientSpan()})
+	out := runSCPeerNameProvider(t, &scproxy.SCProxyConfig{Enabled: false}, []request.Span{vipClientSpan()})
 	require.Len(t, out, 1)
 	assert.Empty(t, out[0].PeerServiceName)
 
@@ -139,7 +139,7 @@ func TestSCPeerNameProvider_DisabledBypasses(t *testing.T) {
 }
 
 func TestSCPeerNameProvider_EnabledWithoutSidecarsPassesSpansThrough(t *testing.T) {
-	cfg := &scproxy.Config{Enabled: true, Interval: time.Hour, ProcRoot: fakeProc(t, testCallPID, testNetNS)}
+	cfg := &scproxy.SCProxyConfig{Enabled: true, Interval: time.Hour, ProcRoot: fakeProc(t, testCallPID, testNetNS)}
 	out := runSCPeerNameProvider(t, cfg, []request.Span{vipClientSpan()})
 	require.Len(t, out, 1)
 	assert.Empty(t, out[0].PeerServiceName)

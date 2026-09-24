@@ -26,6 +26,7 @@ Generated from [`config-schema.json`](config-schema.json).
 - [`otel_traces_export`](#otel-traces-export)
 - [`prometheus_export`](#prometheus-export)
 - [`routes`](#routes)
+- [`scproxy`](#scproxy)
 - [`stats`](#stats)
 - [Type Definitions](#type-definitions)
 
@@ -590,6 +591,17 @@ RoutesConfig allows grouping URLs sharing a given pattern.
 | `routes.patterns` | `string`[] |  |  |  |  | Defines the URL path patterns that will match to a route |
 | `routes.unmatched` | `string` |  | `heuristic` | `heuristic`, `low-cardinality`, `path`, `unset`, `wildcard` |  | Specifies what to do when a route pattern is not matched. Empty string is treated the same as "wildcard". |
 | `routes.wildcard_char` | `string` |  | `*` |  |  | Character that will be used to replace route segments |
+
+## `scproxy`
+
+SCProxyConfig enables naming the callee of calls made through a Service Connect VIP. EXPERIMENTAL (PoC), off by default.
+
+| YAML Path | Type | Env Var | Default | Values | Deprecated | Description |
+|---|---|---|---|---|---|---|
+| `scproxy.block_list_file` | `string` |  |  |  |  | BlockListFile holds network namespace inodes, one decimal per line, whose admin reads are treated as failed. PoC-only fault injection; re-read on every tick. A missing file is an empty list. |
+| `scproxy.enabled` | `boolean` |  | `false` |  |  |  |
+| `scproxy.interval` | `duration` |  | `10s` | `30s`, `5m`, `1ms`, etc |  | Interval between two reads of every sidecar's admin socket. |
+| `scproxy.proc_root` | `string` |  | `/proc` |  |  |  |
 
 ## `stats`
 

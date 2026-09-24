@@ -39,7 +39,7 @@ func scpnlog() *slog.Logger {
 // SCPeerNameProvider sets PeerServiceName on HTTP client spans sent to a Service Connect
 // VIP, from the callee name the sidecar's current backends agree on. It only fills an
 // empty PeerServiceName and never guesses: a span it can't resolve passes unchanged.
-func SCPeerNameProvider(ctxInfo *global.ContextInfo, cfg *scproxy.Config,
+func SCPeerNameProvider(ctxInfo *global.ContextInfo, cfg *scproxy.SCProxyConfig,
 	input, output *msg.Queue[[]request.Span],
 ) swarm.InstanceFunc {
 	return func(_ context.Context) (swarm.RunFunc, error) {

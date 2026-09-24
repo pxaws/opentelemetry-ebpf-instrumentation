@@ -223,7 +223,7 @@ var DefaultConfig = Config{
 		BPFFSPath:      "/sys/fs/bpf/",
 		InstrumentCuda: config.CudaModeAuto,
 	},
-	SCProxy: scproxy.Config{
+	SCProxy: scproxy.SCProxyConfig{
 		Interval: scproxy.DefaultInterval,
 		ProcRoot: scproxy.DefaultProcRoot,
 	},
@@ -385,7 +385,7 @@ type Config struct {
 	TracePrinter debug.TracePrinter            `yaml:"trace_printer" env:"OTEL_EBPF_TRACE_PRINTER"`
 
 	// SCProxy names the callee of calls through an ECS Service Connect VIP. EXPERIMENTAL (PoC).
-	SCProxy scproxy.Config `yaml:"scproxy"`
+	SCProxy scproxy.SCProxyConfig `yaml:"scproxy"`
 
 	// Exec allows selecting the instrumented executable whose complete path contains the Exec value.
 	//

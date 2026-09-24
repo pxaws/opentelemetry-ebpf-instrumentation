@@ -39,7 +39,7 @@ type Joiner struct {
 	tables        atomic.Pointer[netnsTables]
 }
 
-func NewJoiner(cfg *Config, peers PeerNameSource) *Joiner {
+func NewJoiner(cfg *SCProxyConfig, peers PeerNameSource) *Joiner {
 	interval := cfg.Interval
 	if interval <= 0 {
 		interval = DefaultInterval

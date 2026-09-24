@@ -361,7 +361,7 @@ discovery:
 			WildcardChar:              "*",
 			MaxPathSegmentCardinality: 10,
 		},
-		SCProxy: scproxy.Config{
+		SCProxy: scproxy.SCProxyConfig{
 			Interval: scproxy.DefaultInterval,
 			ProcRoot: scproxy.DefaultProcRoot,
 		},
@@ -521,7 +521,7 @@ func TestConfig_SCProxyDefaultsOff(t *testing.T) {
 	cfg, err := LoadConfig(nil)
 	require.NoError(t, err)
 
-	assert.Equal(t, scproxy.Config{Interval: 10 * time.Second, ProcRoot: "/proc"}, cfg.SCProxy)
+	assert.Equal(t, scproxy.SCProxyConfig{Interval: 10 * time.Second, ProcRoot: "/proc"}, cfg.SCProxy)
 }
 
 func TestConfig_SCProxyFromYAML(t *testing.T) {
@@ -534,7 +534,7 @@ scproxy:
 `))
 	require.NoError(t, err)
 
-	assert.Equal(t, scproxy.Config{
+	assert.Equal(t, scproxy.SCProxyConfig{
 		Enabled:       true,
 		Interval:      3 * time.Second,
 		BlockListFile: "/tmp/scproxy-block",

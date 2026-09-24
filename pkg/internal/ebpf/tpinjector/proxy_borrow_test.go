@@ -277,13 +277,24 @@ func TestProxyBorrow_DiscoveredEnvoyIsNotAnApp(t *testing.T) {
 func TestProxyBorrow_OnlyWithTCPPropagation(t *testing.T) {
 	for mode, want := range map[string]bool{"disabled": false, "headers": false, "tcp": true, "all": true} {
 		cfg := &obi.Config{}
+		cfg.SCProxy.Enabled = true
 		require.NoError(t, cfg.EBPF.ContextPropagation.UnmarshalText([]byte(mode)))
 		assert.Equal(t, want, New(cfg).proxyNames != nil, mode)
 	}
 }
 
+// TCP propagation alone must not start the /proc scan or write the proxy map.
+func TestProxyBorrow_OffUnlessSCProxyEnabled(t *testing.T) {
+	for _, mode := range []string{"tcp", "all"} {
+		cfg := &obi.Config{}
+		require.NoError(t, cfg.EBPF.ContextPropagation.UnmarshalText([]byte(mode)))
+		assert.Nil(t, New(cfg).proxyNames, mode)
+	}
+}
+
 func TestNew_BorrowerUsesConfiguredProcRoot(t *testing.T) {
 	cfg := &obi.Config{}
+	cfg.SCProxy.Enabled = true
 	require.NoError(t, cfg.EBPF.ContextPropagation.UnmarshalText([]byte("tcp")))
 	cfg.SCProxy.ProcRoot = "/host/proc"
 	require.NotNil(t, New(cfg).proxyNames)

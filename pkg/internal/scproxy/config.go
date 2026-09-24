@@ -10,9 +10,9 @@ const (
 	DefaultProcRoot = "/proc"
 )
 
-// Config enables naming the callee of calls made through a Service Connect VIP.
+// SCProxyConfig enables naming the callee of calls made through a Service Connect VIP.
 // EXPERIMENTAL (PoC), off by default.
-type Config struct {
+type SCProxyConfig struct {
 	Enabled bool `yaml:"enabled" env:"OTEL_EBPF_SCPROXY_ENABLED"`
 	// Interval between two reads of every sidecar's admin socket.
 	Interval time.Duration `yaml:"interval" env:"OTEL_EBPF_SCPROXY_INTERVAL"`
@@ -23,7 +23,7 @@ type Config struct {
 	ProcRoot      string `yaml:"proc_root" env:"OTEL_EBPF_SCPROXY_PROC_ROOT"`
 }
 
-func (c *Config) ProcRootOrDefault() string {
+func (c *SCProxyConfig) ProcRootOrDefault() string {
 	if c.ProcRoot == "" {
 		return DefaultProcRoot
 	}

@@ -2804,6 +2804,35 @@
       "type": "object",
       "description": "RoutesConfig allows grouping URLs sharing a given pattern."
     },
+    "SCProxyConfig": {
+      "properties": {
+        "block_list_file": {
+          "type": "string",
+          "description": "BlockListFile holds network namespace inodes, one decimal per line, whose admin reads are treated as failed. PoC-only fault injection; re-read on every tick. A missing file is an empty list."
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "interval": {
+          "type": "string",
+          "pattern": "^[0-9]+(ms|s|m)$",
+          "description": "Interval between two reads of every sidecar's admin socket.",
+          "default": "10s",
+          "examples": [
+            "30s",
+            "5m",
+            "1ms"
+          ]
+        },
+        "proc_root": {
+          "type": "string",
+          "default": "/proc"
+        }
+      },
+      "type": "object",
+      "description": "SCProxyConfig enables naming the callee of calls made through a Service Connect VIP. EXPERIMENTAL (PoC), off by default."
+    },
     "SQLPPConfig": {
       "properties": {
         "enabled": {
@@ -3210,6 +3239,10 @@
     "routes": {
       "$ref": "#/$defs/RoutesConfig",
       "description": "Configures URL path grouping. If not set, data will be directly forwarded to exporters."
+    },
+    "scproxy": {
+      "$ref": "#/$defs/SCProxyConfig",
+      "description": "Names the callee of calls through an ECS Service Connect VIP. EXPERIMENTAL (PoC)."
     },
     "service_name": {
       "type": "string",
