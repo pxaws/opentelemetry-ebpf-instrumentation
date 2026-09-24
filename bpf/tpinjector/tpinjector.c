@@ -36,6 +36,7 @@
 #include <maps/msg_buffers.h>
 #include <maps/outgoing_trace_map.h>
 #include <maps/sock_dir.h>
+#include <maps/svc_name_by_peer.h>
 #include <maps/svc_peer_name_map.h>
 #include <maps/tp_info_mem.h>
 #include <maps/tracked_sock_cookies.h>
@@ -44,6 +45,7 @@
 
 #include <tpinjector/h2_parse.h>
 #include <tpinjector/inject_policy.h>
+#include <tpinjector/peer_key_policy.h>
 #include <tpinjector/maps/sk_h2_flags.h>
 #include <tpinjector/maps/sk_h2_conn_flag.h>
 #include <tpinjector/maps/sk_svc_name_map.h>
@@ -699,6 +701,23 @@ static __always_inline void parse_trace_hdr_opt(struct bpf_sock_ops *skops) {
     bpf_map_update_elem(&incoming_trace_map, &conn, &tp, BPF_ANY);
 }
 
+// EXPERIMENTAL — also file the peer's name under its address, for user space to join
+// a Service Connect VIP to its backends. remote_ip4 is read for every family: it is the
+// IPv4 address on a v4-mapped IPv6 socket and 0 (skipped) on a pure IPv6 one.
+static __always_inline void learn_svc_name_by_peer(const struct bpf_sock_ops *skops,
+                                                   const svc_name_value_t *val) {
+    const u32 remote_ip4 = skops->remote_ip4;
+    if (!svc_peer_addr_learnable(remote_ip4)) {
+        return;
+    }
+
+    const svc_peer_addr_t key = {
+        .ip4 = remote_ip4,
+        .port = bpf_ntohl(skops->remote_port),
+    };
+    bpf_map_update_elem(&svc_name_by_peer, &key, val, BPF_ANY);
+}
+
 // EXPERIMENTAL — parse the kind-26 service-name option a peer wrote on a segment
 // it sent (a client reading it off a response). Stores the peer's name keyed by
 // the sorted connection, for the client-span producer to pick up.
@@ -734,6 +753,7 @@ static __always_inline void parse_svc_name_hdr_opt(struct bpf_sock_ops *skops) {
     connection_info_t conn = get_connection_info_ops(skops);
     sort_connection_info(&conn);
     bpf_map_update_elem(&svc_peer_name_map, &conn, &val, BPF_ANY);
+    learn_svc_name_by_peer(skops, &val);
 
     if (g_bpf_debug) {
         bpf_dbg_printk("parsed peer svc-name from TCP option (len=%d)", n);

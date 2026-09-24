@@ -51,3 +51,4 @@ func (p *Tracer) ProcessBinary(_ *exec.FileInfo)                      {}
 func (p *Tracer) SetEventContext(_ *ebpfcommon.EBPFEventContext)      {}
 func (p *Tracer) Capabilities() ebpfcommon.TracerCapability           { return 0 }
 func (p *Tracer) Required() bool                                      { return false }
+func (p *Tracer) PeerNames() (map[string]string, error)               { return nil, nil }
