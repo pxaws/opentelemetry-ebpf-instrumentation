@@ -1,10 +1,16 @@
 # PoC notes: Service Connect peer.service.name
 
 Branch `poc/sc-envoy-peer-name`, cut from `local-omni-us-east-1` at `8880a21`
-(a local `git clone` of `setup-local-omni/obi-ping-demo`). The push URL is set
-to `DISABLED`; no commit leaves this machine. (The rig's collector config, which since run 3
-also exports to CloudWatch, lives in `ecs-investigation/experiments/sc-obi-poc/collector-config.yaml`,
-not here.) Plan:
+(a local `git clone` of `setup-local-omni/obi-ping-demo`). Remotes:
+
+| Remote | URL | Push |
+|---|---|---|
+| `origin` | `github.com/pxaws/opentelemetry-ebpf-instrumentation` (public fork) | yes; the branch tracks `origin/poc/sc-envoy-peer-name` |
+| `upstream` | `github.com/wangzlei/opentelemetry-ebpf-instrumentation` | `DISABLED` |
+| `local` | the `obi-ping-demo` clone (the base branch) | `DISABLED`: the source repo must not change |
+
+The rig's collector config, which since run 3 also exports to CloudWatch, lives in
+`ecs-investigation/experiments/sc-obi-poc/collector-config.yaml`, not here. Plan:
 `ecs-investigation/docs/plans/2026-09-23-2305-feat-sc-envoy-peer-service-name-poc-plan.md`.
 
 ## How to build and test on this desktop
