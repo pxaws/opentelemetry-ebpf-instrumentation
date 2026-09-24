@@ -2,7 +2,9 @@
 
 Branch `poc/sc-envoy-peer-name`, cut from `local-omni-us-east-1` at `8880a21`
 (a local `git clone` of `setup-local-omni/obi-ping-demo`). The push URL is set
-to `DISABLED`; nothing leaves this machine. Plan:
+to `DISABLED`; no commit leaves this machine. (The rig's collector config, which since run 3
+also exports to CloudWatch, lives in `ecs-investigation/experiments/sc-obi-poc/collector-config.yaml`,
+not here.) Plan:
 `ecs-investigation/docs/plans/2026-09-23-2305-feat-sc-envoy-peer-service-name-poc-plan.md`.
 
 ## How to build and test on this desktop
