@@ -17,11 +17,26 @@ receivers:
   obi:
     open_port: "8000"
     log_level: INFO
+    # Print the resolved config at startup. It is the only proof that the partial `discovery:` map
+    # below merged into OBI's defaults and did not replace them.
+    log_config: yaml
     ebpf:
-      context_propagation: "all"
+      # TCP service-name option only, no HTTP traceparent. OBI must not write trace context into
+      # requests that the SDK already traces. The callers' peer.service.name comes from this option.
+      context_propagation: "tcp"
       bpf_fs_base_dir: /sys/fs/bpf
+    discovery:
+      # Keep OBI RED metrics for a process that also exports SDK data. With the default (true), OBI
+      # stops its metrics for a process that it sees export SDK metrics.
+      exclude_otel_instrumented_services: false
     metrics:
       features: "application"
+  # The ADOT SDK in the app container exports spans here. Loopback only: the fleet security group
+  # opens 4318 to every host in the group.
+  otlp:
+    protocols:
+      http:
+        endpoint: 127.0.0.1:4318
 
 processors:
   batch:
@@ -31,6 +46,11 @@ processors:
     # metrics endpoint rejects wholesale (KTD12).
     send_batch_size: 1024
     send_batch_max_size: 1024
+  # Spans only. The bridge writes each export as one Kafka record (1 MiB limit), so the cap is lower.
+  batch/traces:
+    timeout: 5s
+    send_batch_size: 256
+    send_batch_max_size: 256
   # CloudWatch OTLP requires DELTA temporality; OBI emits cumulative and has no configuration key for
   # it, so the entire delta contract rests on this processor. Both metric exporters sit downstream of
   # it on one pipeline for that reason (KTD8) — an exporter outside the pipeline would ship cumulative,
@@ -85,6 +105,15 @@ exporters:
     compression: gzip
     auth:
       authenticator: sigv4auth/xray
+    # The exporters of one pipeline are called in turn. A non-blocking queue on each one keeps a slow
+    # bridge copy from delaying this one. Counted in spans, so the size is a memory bound.
+    sending_queue:
+      enabled: true
+      sizer: items
+      queue_size: 4096
+      num_consumers: 2
+      block_on_overflow: false
+      wait_for_result: false
   # The bridge instance's OTLP receiver, which wraps each export as one Kafka record for the desktop's
   # ingestion consumer. No authenticator: it is reachable only from inside the fleet's security group.
   #
@@ -107,6 +136,23 @@ exporters:
       enabled: true
       queue_size: 100
       num_consumers: 2
+  # The span copy for the local Omni stack. Same receiver as the metrics (otlp_http appends
+  # /v1/traces). Spans that wait more than about 90 s reach Ingestion after the Signal Processor has
+  # read their minute, so the queue holds about that much (about 2 spans/s per host) and drops the
+  # rest. Retries off for the same reason, and to keep a dead bridge from growing memory.
+  otlp_http/bridge_traces:
+    endpoint: ${env:OMNI_BRIDGE_ENDPOINT}
+    compression: gzip
+    timeout: 2s
+    retry_on_failure:
+      enabled: false
+    sending_queue:
+      enabled: true
+      sizer: items
+      queue_size: 256
+      num_consumers: 2
+      block_on_overflow: false
+      wait_for_result: false
 
 service:
   extensions: [sigv4auth, sigv4auth/xray]
@@ -132,9 +178,9 @@ service:
       receivers: [obi]
       processors: [transform/aws, cumulativetodelta, batch]
       exporters: [otlp_http/cloudwatch, otlp_http/bridge, debug]
-    # All spans -> CloudWatch/X-Ray OTLP, with the same AWS resource attrs. Unchanged: the local Omni
-    # stack reads metrics only, and traces into it are out of scope.
+    # SDK spans only (OBI sends none) -> X-Ray OTLP and the bridge, from one fan-out. transform/aws
+    # gives them the same AWS resource keys that the OBI spans had.
     traces:
-      receivers: [obi]
-      processors: [transform/aws, batch]
-      exporters: [otlp_http/xray, debug]
+      receivers: [otlp]
+      processors: [transform/aws, batch/traces]
+      exporters: [otlp_http/xray, otlp_http/bridge_traces, debug]

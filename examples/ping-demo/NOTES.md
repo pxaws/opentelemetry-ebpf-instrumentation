@@ -79,6 +79,16 @@ us-west-2 rig whose redeploy is "write it and restart", so a hardcoded region pu
 publication one command away) and `OMNI_BRIDGE_ENDPOINT` (the bridge's OTLP receiver, e.g.
 `http://10.1.2.3:4318`; `otlp_http` appends `/v1/metrics`).
 
+**Spans come from the ADOT SDK, not from OBI (since 2026-10-10).** The `otlp` receiver listens on
+`127.0.0.1:4318` (loopback only: the fleet security group opens 4318 between hosts) and takes the
+spans of the ADOT layer in checkout, inventory, and audit; payment runs no SDK. The traces pipeline
+sends them to X-Ray and, through `otlp_http/bridge_traces`, to the same bridge receiver as the
+metrics. OBI stays in the metrics pipeline only, with `context_propagation: tcp` (the
+`peer.service.name` TCP option, no HTTP `traceparent` written into SDK-traced requests) and
+`exclude_otel_instrumented_services: false` (keep OBI RED metrics for a process that also exports
+SDK data). Each exporter of the traces pipeline has a non-blocking queue, so a slow or dead bridge
+does not delay the X-Ray copy. The same file runs on all ten hosts.
+
 **Two more are optional:** `AWS_VPC_ID` and `AWS_SUBNET_ID`, read from the host's IMDS at deploy time
 and set on the run command, tag every span/metric with `aws.vpc.id` / `aws.subnet.id`. They use the
 default-empty form `${env:AWS_VPC_ID:-}` guarded by `!= ""`, so a host that does not set them loads the
